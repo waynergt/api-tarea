@@ -3,7 +3,7 @@ import api from "../api/axios";
 import { useNavigate } from "react-router-dom";
 
 export default function LoginPage() {
-  const [usuario, setUsuario] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -12,12 +12,13 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError("");
     try {
-      const res = await api.post("/auth/login", { usuario, password });
+      const res = await api.post("/auth/login", { email, password });
       localStorage.setItem("token", res.data.token);
-      navigate("/expedientes");
+      navigate("/inicio", { replace: true });
     } catch {
-      setError("Usuario o contraseña incorrectos");
+      setError("Correo o contraseña incorrectos");
     } finally {
       setLoading(false);
     }
@@ -35,13 +36,13 @@ export default function LoginPage() {
         </div>
         {error && <div className="text-red-600 mb-4 text-center">{error}</div>}
         <div className="mb-6">
-          <label className="block text-secondary font-semibold mb-2">Usuario</label>
+          <label className="block text-secondary font-semibold mb-2">Correo electrónico</label>
           <input
             className="w-full p-3 border border-muted rounded-xl focus:outline-none focus:ring-2 focus:ring-accent transition"
-            type="text"
-            placeholder="Usuario"
-            value={usuario}
-            onChange={(e) => setUsuario(e.target.value)}
+            type="email"
+            placeholder="Correo electrónico"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             autoFocus
             required
           />
@@ -62,13 +63,29 @@ export default function LoginPage() {
           type="submit"
           disabled={loading}
         >
-          {loading ? (
-            <svg className="animate-spin h-6 w-6 mr-2 text-white" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          {loading && (
+            <svg
+              className="animate-spin h-6 w-6 mr-2 text-white"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+              />
             </svg>
-          ) : null}
-          {loading ? "Ingresando..." : "Ingresar"}
+          )}
+          <span>{loading ? "Ingresando..." : "Ingresar"}</span>
         </button>
       </form>
     </div>

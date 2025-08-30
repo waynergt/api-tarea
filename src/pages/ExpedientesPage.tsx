@@ -12,13 +12,15 @@ type Expediente = {
 
 export default function ExpedientesPage() {
   const [expedientes, setExpedientes] = useState<Expediente[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     api
-      .get("/expedientes", {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-      })
-      .then((res) => setExpedientes(res.data.expedientes));
+      .get("/expedientes")
+      .then((res) => setExpedientes(res.data.expedientes))
+      .catch(() => setError("Error al cargar expedientes"))
+      .finally(() => setLoading(false));
   }, []);
 
   return (
@@ -33,7 +35,11 @@ export default function ExpedientesPage() {
         </Link>
       </div>
       <div className="bg-surface rounded-xl shadow-lg p-6">
-        {expedientes.length === 0 ? (
+        {loading ? (
+          <div className="text-center py-12 text-xl text-primary">Cargando...</div>
+        ) : error ? (
+          <div className="text-center py-12 text-xl text-red-500">{error}</div>
+        ) : expedientes.length === 0 ? (
           <div className="text-center text-gray-400 py-12 text-xl">No hay expedientes</div>
         ) : (
           <table className="w-full">

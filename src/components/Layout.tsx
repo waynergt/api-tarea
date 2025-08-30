@@ -6,13 +6,23 @@ export default function Layout() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <nav className="bg-primary text-white px-8 py-4 flex items-center justify-between shadow-lg sticky top-0 z-50">
-        <div className="font-bold text-2xl tracking-wide">Evidencias DICRI</div>
+        <div className="font-bold text-2xl tracking-wide">Evidencias</div>
         <div className="space-x-8">
           <Link
             to="/expedientes"
-            className={`hover:text-accent transition font-semibold ${location.pathname.startsWith("/expedientes") ? "text-accent underline" : ""}`}
+            className={`hover:text-accent transition font-semibold ${
+              location.pathname.startsWith("/expedientes") ? "text-accent underline" : ""
+            }`}
           >
             Expedientes
+          </Link>
+          <Link
+            to="/inicio"
+            className={`hover:text-accent transition font-semibold ${
+              location.pathname === "/inicio" ? "text-accent underline" : ""
+            }`}
+          >
+            Inicio
           </Link>
         </div>
         {/* Aquí puedes poner logout/avatar si tienes auth */}
@@ -21,7 +31,7 @@ export default function Layout() {
         <Outlet />
       </main>
       <footer className="bg-surface text-center py-3 text-gray-500 text-sm border-t">
-        DICRI © 2025
+        Wayner López © 2025
       </footer>
     </div>
   );
