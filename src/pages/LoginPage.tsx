@@ -9,10 +9,21 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  const validateEmail = (email: string) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError("");
+    if (!validateEmail(email)) {
+      setError("Por favor ingresa un correo válido.");
+      return;
+    }
+    if (!password) {
+      setError("La contraseña es obligatoria.");
+      return;
+    }
+    setLoading(true);
     try {
       const res = await api.post("/auth/login", { email, password });
       localStorage.setItem("token", res.data.token);
@@ -31,61 +42,33 @@ export default function LoginPage() {
         className="bg-surface shadow-2xl rounded-2xl px-8 py-10 w-full max-w-md border border-muted flex flex-col"
       >
         <div className="flex flex-col items-center mb-8">
-          <span className="text-4xl font-extrabold text-primary mb-2">BIENVENIDO</span>
-          <span className="text-lg text-secondary font-semibold">Ingrese sus credenciales</span>
+          <h2 className="text-2xl font-bold mb-2 text-accent">Iniciar sesión</h2>
         </div>
-        {error && <div className="text-red-600 mb-4 text-center">{error}</div>}
-        <div className="mb-6">
-          <label className="block text-secondary font-semibold mb-2">Correo electrónico</label>
-          <input
-            className="w-full p-3 border border-muted rounded-xl focus:outline-none focus:ring-2 focus:ring-accent transition"
-            type="email"
-            placeholder="Correo electrónico"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoFocus
-            required
-          />
-        </div>
-        <div className="mb-8">
-          <label className="block text-secondary font-semibold mb-2">Contraseña</label>
-          <input
-            className="w-full p-3 border border-muted rounded-xl focus:outline-none focus:ring-2 focus:ring-accent transition"
-            type="password"
-            placeholder="Contraseña"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-        </div>
+        {error && (
+          <div className="mb-4 text-red-500 text-center">{error}</div>
+        )}
+        <input
+          type="email"
+          placeholder="Correo electrónico"
+          className="mb-4 px-4 py-2 rounded border border-muted bg-background text-white"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          disabled={loading}
+        />
+        <input
+          type="password"
+          placeholder="Contraseña"
+          className="mb-6 px-4 py-2 rounded border border-muted bg-background text-white"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          disabled={loading}
+        />
         <button
-          className="w-full bg-primary text-white py-3 rounded-xl font-bold text-lg hover:bg-accent shadow transition flex items-center justify-center"
           type="submit"
+          className="bg-accent hover:bg-accent/80 text-white font-semibold px-4 py-2 rounded transition"
           disabled={loading}
         >
-          {loading && (
-            <svg
-              className="animate-spin h-6 w-6 mr-2 text-white"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-              />
-            </svg>
-          )}
-          <span>{loading ? "Ingresando..." : "Ingresar"}</span>
+          {loading ? "Ingresando..." : "Ingresar"}
         </button>
       </form>
     </div>

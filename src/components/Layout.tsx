@@ -1,37 +1,62 @@
-import { Outlet, Link, useLocation } from "react-router-dom";
+import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
+import { useCallback } from "react";
+import { FiHome, FiFolder, FiLogOut } from "react-icons/fi"; // Iconos de react-icons
 
 export default function Layout() {
   const location = useLocation();
+  const navigate = useNavigate();
+
+  // Función para cerrar sesión
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem("token");
+    navigate("/login", { replace: true });
+  }, [navigate]);
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <nav className="bg-primary text-white px-8 py-4 flex items-center justify-between shadow-lg sticky top-0 z-50">
-        <div className="font-bold text-2xl tracking-wide">Evidencias</div>
-        <div className="space-x-8">
-          <Link
-            to="/expedientes"
-            className={`hover:text-accent transition font-semibold ${
-              location.pathname.startsWith("/expedientes") ? "text-accent underline" : ""
-            }`}
-          >
-            Expedientes
-          </Link>
-          <Link
-            to="/inicio"
-            className={`hover:text-accent transition font-semibold ${
-              location.pathname === "/inicio" ? "text-accent underline" : ""
-            }`}
-          >
-            Inicio
-          </Link>
+      {/* NAVBAR */}
+      <nav className="bg-primary text-white shadow-lg sticky top-0 z-50 w-full">
+        <div className="max-w-4xl mx-auto flex items-center justify-between px-4 py-4">
+          <span className="font-bold text-2xl tracking-wide flex items-center gap-2">
+            <FiFolder className="text-accent" /> Evidencias
+          </span>
+          <div className="flex gap-4 sm:gap-6 items-center">
+            <Link
+              to="/inicio"
+              className={`flex items-center gap-1 hover:text-accent transition font-semibold ${
+                location.pathname === "/inicio" ? "text-accent underline" : ""
+              }`}
+            >
+              <FiHome /> Inicio
+            </Link>
+            <Link
+              to="/expedientes"
+              className={`flex items-center gap-1 hover:text-accent transition font-semibold ${
+                location.pathname.startsWith("/expedientes") ? "text-accent underline" : ""
+              }`}
+            >
+              <FiFolder /> Expedientes
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="ml-2 flex items-center gap-1 bg-accent hover:bg-accent/80 text-white font-semibold px-3 py-2 rounded transition"
+            >
+              <FiLogOut /> Cerrar sesión
+            </button>
+          </div>
         </div>
-        {/* Aquí puedes poner logout/avatar si tienes auth */}
       </nav>
-      <main className="flex-1 p-8">
-        <Outlet />
+      {/* MAIN */}
+      <main className="flex-1 flex items-center justify-center px-2">
+        <div className="w-full max-w-4xl mx-auto">
+          <Outlet />
+        </div>
       </main>
-      <footer className="bg-surface text-center py-3 text-gray-500 text-sm border-t">
-        Wayner López © 2025
+      {/* FOOTER */}
+      <footer className="bg-surface border-t w-full">
+        <div className="max-w-4xl mx-auto text-center py-3 text-gray-500 text-sm">
+          Wayner López © 2025
+        </div>
       </footer>
     </div>
   );
