@@ -1,26 +1,11 @@
 import { useEffect, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
-import axios from "axios";
 import api from "../api/axios";
 import { FiUser, FiMail, FiCheckCircle, FiSearch, FiEdit2, FiPlus, FiX } from "react-icons/fi";
 
-interface APIError {
-  message: string;
-  response?: {
-    status?: number;
-    data?: {
-      message?: string;
-      error?: string;
-    };
-  };
-}
-
 interface Usuario {
   id: number;
-  usuario_id?: number; // Para compatibilidad con la API
   nombre: string;
   correo: string;
-  email?: string;
   activo: boolean;
   rol: 'tecnico' | 'coordinador';
   codigo: string;
@@ -36,39 +21,20 @@ interface FormUsuario {
 
 interface UsuarioAPI {
   usuario_id: number;
-  id?: number; // algunos endpoints pueden devolver id en lugar de usuario_id
   nombre: string;
   email: string;
-  activo?: boolean;
+  activo: boolean;
   rol: 'tecnico' | 'coordinador';
-  codigo?: string;
-}
-
-interface APIResponse {
-  ok: boolean;
-  usuarios?: UsuarioAPI[];
-  data?: UsuarioAPI[];
-  error?: string;
-  message?: string;
-  usuario_id?: number;
-  paginacion?: {
-    total: number;
-    totalPages: number;
-    currentPage: number;
-    pageSize: number;
-  };
+  codigo: string;
 }
 
 export default function UsuariosPage() {
-  const navigate = useNavigate();
-
   // Estados
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<Usuario | null>(null);
   const [formData, setFormData] = useState<FormUsuario>({
@@ -81,26 +47,16 @@ export default function UsuariosPage() {
 
   // Función para cargar usuarios
   const loadUsers = useCallback(async () => {
+    if (loading && usuarios.length > 0) return;
+    
+    setLoading(true);
+    setError(null);
+    
     try {
-      setLoading(true);
-      setError(null);
-
-      const token = localStorage.getItem("token");
-      console.log("Token actual:", token ? "Presente" : "No encontrado");
-      
-      console.log('Iniciando carga de usuarios...');
       const response = await api.get("/usuarios", {
-        params: {
-          page: currentPage,
-          pageSize: 10
-        }
-      });
-      
-      console.log('Respuesta completa del servidor:', {
-        status: response.status,
-        statusText: response.statusText,
-        headers: response.headers,
-        data: response.data
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
       });
 
       if (!response.data) {
@@ -108,120 +64,56 @@ export default function UsuariosPage() {
       }
 
       const rawData = response.data;
+      console.log('Datos recibidos del servidor:', rawData);
 
-      // Verificar la estructura de la respuesta
-      if (!rawData.ok) {
-        throw new Error(rawData.error || "Error desconocido en la respuesta");
-      }
-
-      if (!rawData.usuarios || !Array.isArray(rawData.usuarios)) {
-        console.error('Estructura de respuesta inesperada:', rawData);
-        throw new Error("La respuesta no contiene un array de usuarios válido");
-      }
-
-      // Actualizar la información de paginación
-      if (rawData.paginacion) {
-        setTotalPages(rawData.paginacion.totalPages);
-      }
-
-      console.log('Datos crudos de usuarios:', rawData.usuarios);
-      const usuariosMapeados = rawData.usuarios.map((u: UsuarioAPI) => {
-        // Usar id o usuario_id, lo que esté disponible
-        const userId = u.usuario_id || u.id;
-        if (!userId) {
-          console.error('Usuario sin ID:', u);
-          throw new Error('Usuario sin ID válido en la respuesta del servidor');
-        }
-        const usuarioMapeado = {
-          id: userId,
-          usuario_id: userId, // mantener ambos para compatibilidad
+      const usuariosArray = Array.isArray(rawData) ? rawData : [rawData];
+      const usuariosMapeados = usuariosArray
+        .filter((u: UsuarioAPI) => u && u.usuario_id)
+        .map((u: UsuarioAPI) => ({
+          id: u.usuario_id,
           nombre: u.nombre,
           correo: u.email,
-          activo: u.activo ?? true,
+          activo: u.activo,
           rol: u.rol,
-          codigo: u.codigo || ''
-        };
-        console.log('Usuario mapeado:', usuarioMapeado);
-        return usuarioMapeado;
-      });
+          codigo: u.codigo
+        }));
 
       console.log('Usuarios procesados:', usuariosMapeados);
-      
-      if (usuariosMapeados.length === 0) {
-        console.log('No se encontraron usuarios');
-      }
-
       setUsuarios(usuariosMapeados);
       
-    } catch (err) {
-      console.error("Error al cargar usuarios:", err);
-      
-      if (axios.isAxiosError(err)) {
-        const error = err;
-        
-        if (error.response) {
-          // El servidor respondió con un código de error
-          console.log("Respuesta de error:", error.response);
-          
-          if (error.response.status === 401) {
-            setError("No está autorizado para ver los usuarios. Por favor, inicie sesión nuevamente.");
-            navigate("/login");
-          } else if (error.response.status === 403) {
-            setError("No tiene permisos suficientes para ver la lista de usuarios.");
-          } else {
-            const responseData = error.response.data as APIResponse;
-            setError(responseData.error || responseData.message || "No se pudieron cargar los usuarios");
-          }
-        } else if (error.request) {
-          // La petición se hizo pero no se recibió respuesta
-          console.log("Error de red:", error.request);
-          setError("Error de conexión. Por favor, verifique su conexión a internet.");
-        } else {
-          // Ocurrió un error al configurar la petición
-          console.log("Error de configuración:", error.message);
-          setError(error.message);
-        }
-      } else if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError("Ocurrió un error inesperado");
-      }
+    } catch (error) {
+      console.error("Error al cargar usuarios:", error);
+      setError(error instanceof Error ? error.message : "No se pudieron cargar los usuarios");
     } finally {
       setLoading(false);
     }
-  }, [navigate, currentPage, setTotalPages]);
+  }, [loading, usuarios.length]);
 
-  // Efecto para verificar permisos y cargar usuarios
+  // Efectos
   useEffect(() => {
-    const userRole = localStorage.getItem("userRole");
-    const token = localStorage.getItem("token");
-
-    console.log("Verificando permisos:", { userRole, hasToken: !!token });
-
-    if (!token) {
-      navigate("/login");
-      return;
-    }
-
-    if (userRole !== "coordinador") {
-      console.log("Usuario no es coordinador:", { userRole });
-      setError("No tiene permisos para ver la lista de usuarios.");
-      return;
-    }
-
-    console.log("Usuario tiene permisos, cargando usuarios...");
     loadUsers();
-  }, [loadUsers, navigate]);
+  }, []); // Solo se ejecuta al montar el componente
 
-  // Efecto para recargar usuarios cuando se cierra el modal
   useEffect(() => {
     if (!isModalOpen) {
       loadUsers();
     }
-  }, [isModalOpen, loadUsers]); // Incluimos loadUsers como dependencia
+  }, [isModalOpen]); // Se ejecuta cuando se cierra el modal
 
-  // Los usuarios ya vienen paginados del servidor
-  const paginatedUsers = usuarios;
+  // Filtrado y Paginación
+  const filteredUsers = usuarios?.filter(user => {
+    if (!searchTerm) return true;
+    const searchTermLower = searchTerm.toLowerCase();
+    return user.nombre.toLowerCase().includes(searchTermLower) ||
+           user.correo.toLowerCase().includes(searchTermLower);
+  }) ?? [];
+
+  const itemsPerPage = 5;
+  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
+  const paginatedUsers = filteredUsers.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   // Handlers
   const handleToggleActive = async (usuario: Usuario) => {
@@ -243,19 +135,11 @@ export default function UsuariosPage() {
   };
 
   const handleEdit = (usuario: Usuario) => {
-    console.log('Editando usuario con ID:', usuario.id, 'Datos completos:', usuario);
-    // Asegurarnos de que el usuario tenga un ID válido
-    if (!usuario.id) {
-      console.error('Error: Intentando editar usuario sin ID');
-      setError('Error al editar: Usuario no tiene ID válido');
-      return;
-    }
-    
     setEditingUser(usuario);
     setFormData({
       nombre: usuario.nombre,
       correo: usuario.correo,
-      codigo: usuario.codigo || '',
+      codigo: usuario.codigo,
       rol: usuario.rol,
       password: "",
     });
@@ -266,34 +150,13 @@ export default function UsuariosPage() {
     e.preventDefault();
     try {
       setError(null);
-      // Validación de campos requeridos
-      if (!formData.nombre || !formData.correo || !formData.codigo || !formData.rol) {
-        throw new Error("Por favor, complete todos los campos requeridos");
-      }
-
-      if (!editingUser && !formData.password) {
-        throw new Error("La contraseña es requerida para nuevos usuarios");
-      }
-
-      // Preparar datos según el formato esperado por el backend
       const data = {
-        nombre: formData.nombre.trim(),
-        email: formData.correo.trim(),
-        password: formData.password || undefined, // Solo enviamos password si tiene valor
+        nombre: formData.nombre,
+        email: formData.correo,
+        password: formData.password,
         codigo: formData.codigo,
         rol: formData.rol
       };
-
-      // Validar el formato del email
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(data.email)) {
-        throw new Error("Por favor ingrese un correo electrónico válido");
-      }
-
-      // Validar la contraseña
-      if (!editingUser && (!data.password || data.password.length < 6)) {
-        throw new Error("La contraseña debe tener al menos 6 caracteres");
-      }
 
       const headers = {
         Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -302,27 +165,19 @@ export default function UsuariosPage() {
 
       let response;
       if (editingUser) {
-        const userId = editingUser.usuario_id || editingUser.id;
-        if (!userId) {
-          console.error('Error: Usuario sin ID válido', editingUser);
-          throw new Error('No se puede actualizar el usuario: ID no válido');
-        }
-        console.log('Actualizando usuario con ID:', userId, 'Datos:', data);
+        console.log('Actualizando usuario:', editingUser.id);
         response = await api.put(
-          `/usuarios/${userId}`,
+          `/usuarios/${editingUser.id}`,
           data,
           { headers }
         );
       } else {
-        console.log('Datos a enviar:', data);
+        console.log('Creando nuevo usuario');
         response = await api.post(
           "/usuarios",
           data,
           { headers }
         );
-
-        // Log de la respuesta para debug
-        console.log('Respuesta del servidor:', response);
       }
 
       console.log('Respuesta del servidor:', response);
@@ -335,26 +190,14 @@ export default function UsuariosPage() {
       } else {
         throw new Error(`Error al procesar el usuario: ${response.status}`);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error detallado:", error);
-      const apiError = error as APIError;
-      
-      // Manejar diferentes tipos de errores
-      if (apiError.response?.data?.error) {
-        // Error del backend con mensaje específico
-        setError(apiError.response.data.error);
-      } else if (apiError.response?.data?.message) {
-        // Error alternativo del backend
-        setError(apiError.response.data.message);
-      } else if (apiError.response?.status === 400) {
-        // Error de validación
-        setError("Los datos proporcionados no son válidos. Por favor, verifique la información.");
+      if (error.response?.data?.message) {
+        setError(error.response.data.message);
       } else if (error instanceof Error) {
-        // Error de JavaScript
         setError(error.message);
       } else {
-        // Error desconocido
-        setError("No se pudo guardar el usuario. Por favor, intente nuevamente.");
+        setError("No se pudo guardar el usuario");
       }
     }
   };
@@ -399,75 +242,62 @@ export default function UsuariosPage() {
           <div className="overflow-x-auto">
             <table className="min-w-full text-left border-collapse">
               <thead>
-                <tr className="bg-primary/95 text-white text-sm uppercase tracking-wider">
-                  <th className="py-4 px-6 rounded-tl-lg font-semibold">Código</th>
-                  <th className="py-4 px-6 font-semibold">Nombre</th>
-                  <th className="py-4 px-6 font-semibold">Correo</th>
-                  <th className="py-4 px-6 font-semibold">Rol</th>
-                  <th className="py-4 px-6 font-semibold">Estado</th>
-                  <th className="py-4 px-6 rounded-tr-lg font-semibold">Acciones</th>
+                <tr className="bg-primary text-white">
+                  <th className="py-3 px-4 rounded-tl-lg">Código</th>
+                  <th className="py-3 px-4">Nombre</th>
+                  <th className="py-3 px-4">Correo</th>
+                  <th className="py-3 px-4">Rol</th>
+                  <th className="py-3 px-4">Estado</th>
+                  <th className="py-3 px-4 rounded-tr-lg">Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {paginatedUsers.map((usuario, index) => (
+                {paginatedUsers.map((usuario) => (
                   <tr
-                    key={`user-${usuario.id}-${index}`}
+                    key={usuario.id}
                     className="border-b border-muted hover:bg-background/60 transition"
                   >
                     <td className="py-3 px-4 font-medium text-gray-300">
                       {usuario.codigo}
                     </td>
-                    <td className="py-4 px-6">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
-                          <FiUser key={`user-icon-${usuario.id}`} className="w-5 h-5 text-white stroke-[1.5]" />
-                        </div>
-                        <span key={`user-name-${usuario.id}`} className="font-medium text-white">{usuario.nombre}</span>
-                      </div>
+                    <td className="py-3 px-4 flex items-center gap-2">
+                      <FiUser className="text-accent" /> {usuario.nombre}
                     </td>
-                    <td className="py-4 px-6">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
-                          <FiMail key={`mail-icon-${usuario.id}`} className="w-5 h-5 text-white stroke-[1.5]" />
-                        </div>
-                        <span key={`mail-${usuario.id}`} className="text-white/90">{usuario.correo}</span>
-                      </div>
+                    <td className="py-3 px-4 flex items-center gap-2">
+                      <FiMail className="text-secondary" /> {usuario.correo}
                     </td>
-                    <td className="py-4 px-6">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                    <td className="py-3 px-4 font-medium">
+                      <span className={`px-2 py-1 rounded-full text-sm ${
                         usuario.rol === 'coordinador' 
-                          ? 'bg-primary/10 text-primary' 
-                          : 'bg-secondary/10 text-secondary'
+                          ? 'bg-primary/20 text-primary' 
+                          : 'bg-secondary/20 text-secondary'
                       }`}>
                         {usuario.rol === 'coordinador' ? 'Coordinador' : 'Técnico'}
                       </span>
                     </td>
-                    <td className="py-4 px-6">
+                    <td className="py-3 px-4">
                       <button
                         onClick={() => handleToggleActive(usuario)}
-                        className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
-                          usuario.activo 
-                            ? "bg-green-500/20 text-green-400" 
-                            : "bg-white/10 text-white/70"
+                        className={`flex items-center gap-1 font-semibold ${
+                          usuario.activo ? "text-green-500" : "text-gray-400"
                         }`}
                       >
-                        <FiCheckCircle key={`status-icon-${usuario.id}`} className="w-5 h-5 stroke-[1.5]" />
-                        <span key={`status-text-${usuario.id}`}>{usuario.activo ? "Activo" : "Inactivo"}</span>
+                        <FiCheckCircle />
+                        {usuario.activo ? "Activo" : "Inactivo"}
                       </button>
                     </td>
-                    <td className="py-4 px-6">
+                    <td className="py-3 px-4">
                       <button
                         onClick={() => handleEdit(usuario)}
-                        className="p-2 rounded-md border-2 border-yellow-500 text-yellow-500 hover:bg-yellow-500 hover:text-black flex items-center justify-center transition-all duration-200"
-                        title="Editar usuario"
+                        className="text-primary hover:text-primary/80 transition"
                       >
-                        <FiEdit2 className="w-5 h-5 stroke-2" />
+                        <FiEdit2 />
                       </button>
                     </td>
                   </tr>
                 ))}
                 {paginatedUsers.length === 0 && (
-                  <tr key="no-users">
+                  <tr>
                     <td colSpan={6} className="text-center py-6 text-gray-400">
                       No hay usuarios registrados.
                     </td>
@@ -478,34 +308,20 @@ export default function UsuariosPage() {
           </div>
 
           {totalPages > 1 && (
-            <div className="flex justify-center items-center gap-2 mt-6 mb-4">
-              <button
-                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
-                className="w-8 h-8 flex items-center justify-center rounded border border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-700 transition-colors"
-              >
-                ←
-              </button>
+            <div className="flex justify-center gap-2 mt-4 mb-4">
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                 <button
                   key={page}
                   onClick={() => setCurrentPage(page)}
-                  className={`w-8 h-8 flex items-center justify-center rounded text-sm font-medium transition-colors ${
+                  className={`px-3 py-1 rounded ${
                     currentPage === page
-                      ? "bg-primary text-white border-primary"
-                      : "border border-gray-600 text-gray-200 hover:bg-gray-700"
+                      ? "bg-primary text-white"
+                      : "bg-gray-700 text-gray-200 hover:bg-gray-600"
                   }`}
                 >
                   {page}
                 </button>
               ))}
-              <button
-                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                disabled={currentPage === totalPages}
-                className="w-8 h-8 flex items-center justify-center rounded border border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-700 transition-colors"
-              >
-                →
-              </button>
             </div>
           )}
         </>

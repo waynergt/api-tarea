@@ -1,0 +1,445 @@
+import { useEffect, useState, useCallback } from "react";
+import api from "../api/axios";
+import { FiUser, FiMail, FiCheckCircle, FiSearch, FiEdit2, FiPlus, FiX } from "react-icons/fi";
+
+type Usuario = {
+  id: number;
+  nombre: string;
+  correo: string;
+  activo: boolean;
+  rol: 'tecnico' | 'coordinador';
+  codigo: string;
+};
+
+type FormUsuario = {
+  nombre: string;
+  correo: string;
+  password?: string;
+  codigo: string;
+  rol: 'tecnico' | 'coordinador';
+};
+
+type UsuarioAPI = {
+  usuario_id: number;
+  nombre: string;
+  email: string;
+  activo: boolean;
+  rol: 'tecnico' | 'coordinador';
+  codigo: string;
+};
+
+export default function UsuariosPage() {
+  // Estados
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<Usuario | null>(null);
+  const [formData, setFormData] = useState<FormUsuario>({
+    nombre: "",
+    correo: "",
+    password: "",
+    codigo: "",
+    rol: "tecnico"
+  });
+
+  // Función para cargar usuarios
+  const loadUsers = useCallback(async () => {
+    if (loading) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await api.get("/usuarios", {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      });
+
+      if (!response.data) {
+        throw new Error("No se recibieron datos del servidor");
+      }
+
+      const rawData = response.data;
+      console.log('Datos recibidos del servidor:', rawData);
+
+      const usuariosArray = Array.isArray(rawData) ? rawData : [rawData];
+      const usuariosMapeados = usuariosArray
+        .filter((u: UsuarioAPI) => u && u.usuario_id)
+        .map((u: UsuarioAPI) => ({
+          id: u.usuario_id,
+          nombre: u.nombre,
+          correo: u.email,
+          activo: u.activo,
+          rol: u.rol,
+          codigo: u.codigo
+        }));
+
+      console.log('Usuarios procesados:', usuariosMapeados);
+      setUsuarios(usuariosMapeados);
+      
+    } catch (error) {
+      console.error("Error al cargar usuarios:", error);
+      setError(error instanceof Error ? error.message : "No se pudieron cargar los usuarios");
+    } finally {
+      setLoading(false);
+    }
+  }, [loading]);
+
+  // Efectos
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
+
+  useEffect(() => {
+    if (!isModalOpen) {
+      loadUsers();
+    }
+  }, [isModalOpen, loadUsers]);
+
+  // Paginación
+  const itemsPerPage = 5;
+  const filteredUsers = usuarios.filter(user =>
+    user.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.correo.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
+  const paginatedUsers = filteredUsers.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  // Handlers
+  const handleToggleActive = async (usuario: Usuario) => {
+    try {
+      await api.put(
+        `/usuarios/${usuario.id}/toggle-active`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      );
+      loadUsers();
+    } catch (err) {
+      console.error("Error al cambiar estado del usuario:", err);
+      setError("No se pudo cambiar el estado del usuario");
+    }
+  };
+
+  const handleEdit = (usuario: Usuario) => {
+    setEditingUser(usuario);
+    setFormData({
+      nombre: usuario.nombre,
+      correo: usuario.correo,
+      codigo: usuario.codigo,
+      rol: usuario.rol,
+      password: "",
+    });
+    setIsModalOpen(true);
+  };
+
+  return (
+    <div className="w-full max-w-3xl mx-auto bg-surface/90 rounded-2xl border border-muted shadow-2xl p-6 mt-8 mb-8">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-3xl font-bold text-primary flex items-center gap-2">
+          <FiUser className="text-accent" /> Usuarios
+        </h2>
+        <button
+          onClick={() => {
+            setEditingUser(null);
+            setFormData({ nombre: "", correo: "", password: "", codigo: "", rol: "tecnico" });
+            setIsModalOpen(true);
+          }}
+          className="bg-primary text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-primary/90 transition"
+        >
+          <FiPlus /> Nuevo Usuario
+        </button>
+      </div>
+
+      <div className="mb-4">
+        <div className="relative">
+          <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Buscar usuarios..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="text-accent text-center py-10 font-bold">Cargando usuarios...</div>
+      ) : error ? (
+        <div className="text-red-500 text-center py-10 font-bold">{error}</div>
+      ) : (
+        <>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-primary text-white">
+                  <th className="py-3 px-4 rounded-tl-lg">Código</th>
+                  <th className="py-3 px-4">Nombre</th>
+                  <th className="py-3 px-4">Correo</th>
+                  <th className="py-3 px-4">Rol</th>
+                  <th className="py-3 px-4">Estado</th>
+                  <th className="py-3 px-4 rounded-tr-lg">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedUsers.map((usuario) => (
+                  <tr
+                    key={usuario.id}
+                    className="border-b border-muted hover:bg-background/60 transition"
+                  >
+                    <td className="py-3 px-4 font-medium text-gray-300">
+                      {usuario.codigo}
+                    </td>
+                    <td className="py-3 px-4 flex items-center gap-2">
+                      <FiUser className="text-accent" /> {usuario.nombre}
+                    </td>
+                    <td className="py-3 px-4 flex items-center gap-2">
+                      <FiMail className="text-secondary" /> {usuario.correo}
+                    </td>
+                    <td className="py-3 px-4 font-medium">
+                      <span className={`px-2 py-1 rounded-full text-sm ${
+                        usuario.rol === 'coordinador' 
+                          ? 'bg-primary/20 text-primary' 
+                          : 'bg-secondary/20 text-secondary'
+                      }`}>
+                        {usuario.rol === 'coordinador' ? 'Coordinador' : 'Técnico'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <button
+                        onClick={() => handleToggleActive(usuario)}
+                        className={`flex items-center gap-1 font-semibold ${
+                          usuario.activo ? "text-green-500" : "text-gray-400"
+                        }`}
+                      >
+                        <FiCheckCircle />
+                        {usuario.activo ? "Activo" : "Inactivo"}
+                      </button>
+                    </td>
+                    <td className="py-3 px-4">
+                      <button
+                        onClick={() => handleEdit(usuario)}
+                        className="text-primary hover:text-primary/80 transition"
+                      >
+                        <FiEdit2 />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {paginatedUsers.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="text-center py-6 text-gray-400">
+                      No hay usuarios registrados.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex justify-center gap-2 mt-4 mb-4">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                <button
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  className={`px-3 py-1 rounded ${
+                    currentPage === page
+                      ? "bg-primary text-white"
+                      : "bg-gray-700 text-gray-200 hover:bg-gray-600"
+                  }`}
+                >
+                  {page}
+                </button>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
+          <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md border border-gray-700 shadow-xl">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-white">
+                {editingUser ? "Editar Usuario" : "Nuevo Usuario"}
+              </h3>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="text-gray-400 hover:text-gray-200"
+              >
+                <FiX />
+              </button>
+            </div>
+            <form 
+              onSubmit={async (e) => {
+                e.preventDefault();
+                try {
+                  setError(null);
+                  const data = {
+                    ...formData,
+                    email: formData.correo,
+                  };
+
+                  const headers = {
+                    Authorization: `Bearer ${localStorage.getItem("token")}`,
+                    'Content-Type': 'application/json',
+                  };
+
+                  let response;
+                  if (editingUser) {
+                    console.log('Actualizando usuario:', editingUser.id);
+                    response = await api.put(
+                      `/usuarios/${editingUser.id}`,
+                      data,
+                      { headers }
+                    );
+                  } else {
+                    console.log('Creando nuevo usuario');
+                    response = await api.post(
+                      "/usuarios",
+                      data,
+                      { headers }
+                    );
+                  }
+
+                  console.log('Respuesta del servidor:', response);
+
+                  if (response.status === 201 || response.status === 200) {
+                    console.log('Operación exitosa, recargando usuarios...');
+                    await loadUsers();
+                    setFormData({ nombre: "", correo: "", password: "", codigo: "", rol: "tecnico" });
+                    setEditingUser(null);
+                    setIsModalOpen(false);
+                  } else {
+                    throw new Error(`Error al procesar el usuario: ${response.status}`);
+                  }
+                } catch (error) {
+                  console.error("Error detallado:", error);
+                  if (error instanceof Error) {
+                    setError(error.message);
+                  } else {
+                    setError("No se pudo guardar el usuario");
+                  }
+                }
+              }}
+            >
+              {error && (
+                <div className="mb-4 p-3 bg-red-500/20 border border-red-500 rounded-md text-red-500">
+                  {error}
+                </div>
+              )}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-200">
+                    Nombre
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.nombre}
+                    onChange={(e) =>
+                      setFormData({ ...formData, nombre: e.target.value })
+                    }
+                    className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm p-2 text-white placeholder-gray-400 focus:ring-primary focus:border-primary"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-200">
+                    Correo
+                  </label>
+                  <input
+                    type="email"
+                    value={formData.correo}
+                    onChange={(e) =>
+                      setFormData({ ...formData, correo: e.target.value })
+                    }
+                    className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm p-2 text-white placeholder-gray-400 focus:ring-primary focus:border-primary"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-200">
+                    Código
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.codigo}
+                    onChange={(e) =>
+                      setFormData({ ...formData, codigo: e.target.value })
+                    }
+                    className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm p-2 text-white placeholder-gray-400 focus:ring-primary focus:border-primary"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-200">
+                    Rol
+                  </label>
+                  <select
+                    value={formData.rol}
+                    onChange={(e) =>
+                      setFormData({ ...formData, rol: e.target.value as 'tecnico' | 'coordinador' })
+                    }
+                    className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm p-2 text-white focus:ring-primary focus:border-primary"
+                    required
+                  >
+                    <option value="tecnico">Técnico</option>
+                    <option value="coordinador">Coordinador</option>
+                  </select>
+                </div>
+                {!editingUser && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-200">
+                      Contraseña
+                    </label>
+                    <input
+                      type="password"
+                      value={formData.password}
+                      onChange={(e) =>
+                        setFormData({ ...formData, password: e.target.value })
+                      }
+                      className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm p-2 text-white placeholder-gray-400 focus:ring-primary focus:border-primary"
+                      required={!editingUser}
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="mt-6 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    setFormData({ nombre: "", correo: "", password: "", codigo: "", rol: "tecnico" });
+                    setError(null);
+                  }}
+                  className="px-4 py-2 border border-gray-600 rounded-md text-gray-300 hover:bg-gray-700 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
+                >
+                  Guardar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

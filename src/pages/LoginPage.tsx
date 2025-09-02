@@ -26,7 +26,19 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const res = await api.post("/auth/login", { email, password });
+      
+      if (!res.data.ok || !res.data.token || !res.data.usuario) {
+        throw new Error("Respuesta inválida del servidor");
+      }
+
       localStorage.setItem("token", res.data.token);
+      localStorage.setItem("userRole", res.data.usuario.rol);
+      console.log("Login exitoso:", { 
+        token: res.data.token, 
+        rol: res.data.usuario.rol,
+        usuario: res.data.usuario 
+      });
+      
       navigate("/inicio", { replace: true });
     } catch {
       setError("Correo o contraseña incorrectos");
